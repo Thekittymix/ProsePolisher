@@ -1247,8 +1247,12 @@ class RegexNavigator {
             rule.disabled = !rule.disabled;
             if (!rule.isStatic) {
                 extension_settings[EXTENSION_NAME].dynamicRules = dynamicRules; 
-                saveSettingsDebounced(); 
+            } else {
+                // Persist static rule disabled state across reloads
+                if (!extension_settings[EXTENSION_NAME].staticRuleOverrides) extension_settings[EXTENSION_NAME].staticRuleOverrides = {};
+                extension_settings[EXTENSION_NAME].staticRuleOverrides[rule.id] = { disabled: rule.disabled };
             }
+            saveSettingsDebounced();
             this.renderRuleList(); 
             await updateGlobalRegexArray();
             window.toastr.success(`Rule "${rule.scriptName}" ${rule.disabled ? 'disabled' : 'enabled'}.`);
@@ -1308,8 +1312,12 @@ class RegexNavigator {
             
             if (!rule.isStatic) {
                  extension_settings[EXTENSION_NAME].dynamicRules = dynamicRules;
-                 saveSettingsDebounced();
+            } else {
+                 // Persist static rule disabled state across reloads
+                 if (!extension_settings[EXTENSION_NAME].staticRuleOverrides) extension_settings[EXTENSION_NAME].staticRuleOverrides = {};
+                 extension_settings[EXTENSION_NAME].staticRuleOverrides[rule.id] = { disabled: rule.disabled };
             }
+            saveSettingsDebounced();
             this.renderRuleList();
             await updateGlobalRegexArray();
             window.toastr.success(isNew ? "New rule created." : "Rule updated.");
@@ -1367,6 +1375,13 @@ async function initializeExtensionCore() {
         if (!staticResponse.ok) throw new Error("Failed to fetch regex_rules.json");
         staticRules = await staticResponse.json();
         staticRules.forEach(rule => { if (!rule.id) rule.id = (rule.scriptName ? PROSE_POLISHER_ID_PREFIX + rule.scriptName.replace(/\s+/g, '_') : PROSE_POLISHER_ID_PREFIX + `staticrule_${Math.random().toString(36).substr(2,5)}`) + '_static'; });
+        // Restore saved disabled states for static rules
+        const savedOverrides = settings.staticRuleOverrides || {};
+        staticRules.forEach(rule => {
+            if (savedOverrides[rule.id] && savedOverrides[rule.id].hasOwnProperty('disabled')) {
+                rule.disabled = savedOverrides[rule.id].disabled;
+            }
+        });
 
         const settingsHtml = await fetch(`${EXTENSION_FOLDER_PATH}/settings.html`).then(res => res.text());
         document.getElementById('extensions_settings').insertAdjacentHTML('beforeend', settingsHtml);
